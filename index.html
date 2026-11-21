@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>On the Farm – AI Hand Match</title>
+<style>
+:root{--sky:#dff5ff;--green:#dff5c9;--ink:#294334;--pink:#ffe0eb;--yellow:#fff0b5}
+*{box-sizing:border-box} body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--ink);background:linear-gradient(180deg,#bdeaff,#f4ffe9 58%,#d7f4c0);min-height:100vh}
+header{text-align:center;padding:14px 12px 6px}h1{margin:0;font-size:clamp(25px,4vw,42px);color:#245a3a;text-shadow:0 2px white}header p{margin:4px;font-weight:700}
+main{max-width:1100px;margin:auto;padding:10px}
+.top{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin:8px}
+.pill{background:white;border:2px solid #c5e8bb;border-radius:20px;padding:8px 15px;font-weight:800}
+button{border:0;border-radius:18px;padding:12px 18px;font-size:17px;font-weight:800;background:#ffcf55;color:#533d14;box-shadow:0 4px 0 #d9a52d;cursor:pointer}
+button:active{transform:translateY(3px);box-shadow:0 1px 0 #d9a52d}
+button.green{background:#78d79a;color:#164b2b;box-shadow:0 4px 0 #48a96c}
+button.blue{background:#83d7f4;color:#17475c;box-shadow:0 4px 0 #4aa8ca}
+.layout{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(260px,.8fr);gap:14px;align-items:start}
+.panel{background:#ffffffdc;border:3px solid white;border-radius:25px;padding:15px;box-shadow:0 8px 20px #548c5a25}
+.prompt{text-align:center;font-size:clamp(22px,3vw,32px);font-weight:900;margin:2px 0 12px}
+.prompt small{display:block;font-size:16px;color:#64806a}
+.cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.card{background:linear-gradient(145deg,#fff,#f1ffe9);border:3px solid #cde9b9;border-radius:22px;min-height:155px;padding:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;position:relative;transition:.15s}
+.card .emoji{font-size:clamp(55px,9vw,86px);filter:drop-shadow(0 5px 2px #0001)}
+.card .word{font-size:clamp(18px,2.5vw,24px);font-weight:900}
+.card.selected{outline:5px solid #ffbf39;transform:scale(1.02)}
+.card.correct{background:#d9ffe1;border-color:#39b96a}
+.card.wrong{background:#ffe0e0;border-color:#ef8585}
+.side h2{margin:0 0 8px}.cameraBox{position:relative;overflow:hidden;border-radius:18px;background:#24352b;aspect-ratio:4/3}
+video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+#camStatus{font-size:14px;margin:8px 0;color:#5e7663}
+#pointer{position:fixed;z-index:10;width:26px;height:26px;border:4px solid #ff5e83;border-radius:50%;background:#ffffff70;pointer-events:none;display:none;transform:translate(-50%,-50%)}
+.feedback{text-align:center;font-size:22px;font-weight:900;min-height:34px;margin:12px 0 4px}
+.help{font-size:14px;line-height:1.5;color:#526b58}
+footer{text-align:center;font-size:13px;padding:12px;color:#59745e}
+@media(max-width:760px){.layout{grid-template-columns:1fr}.side{order:2}.cards{gap:8px}.card{min-height:135px}}
+</style>
+</head>
+<body>
+<header><h1>🐮 On the Farm 🐷</h1><p>เกมจับคู่คำศัพท์ฟาร์มแสนสนุก</p></header>
+<main>
+<div class="top">
+ <span class="pill">⭐ คะแนน: <b id="score">0</b></span>
+ <span class="pill">ข้อที่ <b id="round">1</b> / 18</span>
+ <span class="pill">🏅 เหรียญ: <b id="stars">0</b></span>
+</div>
+<div class="layout">
+<section class="panel">
+ <div class="prompt" id="prompt">Find the cow!<small>แตะรูปวัว หรือใช้ปลายนิ้วชี้ไปที่รูปวัว</small></div>
+ <div class="cards" id="cards"></div>
+ <div class="feedback" id="feedback" aria-live="polite">พร้อมแล้วเริ่มเล่นกันเลย! 🌻</div>
+ <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+  <button class="green" id="next" hidden>ข้อต่อไป ➜</button>
+  <button class="blue" id="restart">เริ่มเกมใหม่ ↻</button>
+ </div>
+</section>
+<aside class="panel side">
+ <h2>📷 กล้อง AI</h2>
+ <div class="cameraBox"><video id="video" autoplay playsinline muted></video></div>
+ <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+  <button class="green" id="startCam">เปิดกล้อง</button>
+  <button class="blue" id="stopCam">ปิดกล้อง</button>
+ </div>
+ <div id="camStatus">กล้องยังไม่เปิด — สามารถเล่นโดยแตะหน้าจอได้</div>
+ <div class="help"><b>วิธีเล่นด้วยมือ</b><br>1. กด “เปิดกล้อง” และอนุญาตให้ใช้กล้อง<br>2. ยกมือให้กล้องเห็น แล้วใช้นิ้วชี้เลื่อนวงกลมสีชมพูไปยังรูปที่ต้องการ<br>3. ค้างปลายนิ้วบนรูปประมาณ 1 วินาทีเพื่อเลือก<br><br><b>หมายเหตุ:</b> ระบบตรวจจับปลายนิ้วชี้ผ่านกล้อง (ไม่บันทึกภาพ) หากกล้องหรือระบบตรวจจับใช้ไม่ได้ ยังเล่นได้ด้วยการแตะรูปบนหน้าจอ</div>
+</aside>
+</div>
+</main>
+<div id="pointer"></div>
+<footer>สื่อการเรียนรู้ภาษาอังกฤษ ป.2 • On the Farm • คำศัพท์ 18 คำ • ภาพสัญลักษณ์การ์ตูนสีสันสดใส</footer>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+<script>
+const animals=[
+ {word:"cat",emoji:"🐱"},{word:"rat",emoji:"🐭"},{word:"dog",emoji:"🐶"},{word:"bear",emoji:"🐻"},
+ {word:"goat",emoji:"🐐"},{word:"rabbit",emoji:"🐰"},{word:"fish",emoji:"🐠"},{word:"bird",emoji:"🐦"},
+ {word:"pig",emoji:"🐷"},{word:"cow",emoji:"🐮"},{word:"chicken",emoji:"🐔"},{word:"monkey",emoji:"🐵"},
+ {word:"lion",emoji:"🦁"},{word:"horse",emoji:"🐴"},{word:"elephant",emoji:"🐘"},{word:"tiger",emoji:"🐯"},
+ {word:"duck",emoji:"🦆"},{word:"snake",emoji:"🐍"}
+];
+let order=0,score=0,stars=0,current=null,answered=false,stream=null,mpCamera=null,handModel=null,lastSelect=0,hoverStart=0,hoverCard=null;
+const $=id=>document.getElementById(id);
+function shuffle(a){return [...a].sort(()=>Math.random()-.5)}
+function newRound(){
+ if(order>=animals.length){$("prompt").innerHTML="Fantastic! 🎉<small>เก่งมาก เล่นครบ 18 ข้อแล้ว</small>";$("cards").innerHTML="";$("feedback").textContent=`ได้ ${score} คะแนน จาก 18 คะแนน`; $("next").hidden=true;return}
+ answered=false; $("round").textContent=order+1;$("score").textContent=score;$("stars").textContent=stars;
+ current=animals[order]; const options=shuffle([current,...shuffle(animals.filter(x=>x!==current)).slice(0,3)]);
+ $("prompt").innerHTML=`Find the ${current.word}!<small>จงเลือกรูปภาพ ${current.word}</small>`;
+ $("feedback").textContent="เลือกคำตอบให้ถูกต้องนะ 🌟";$("next").hidden=true;
+ $("cards").innerHTML=options.map((a,i)=>`<button class="card" data-word="${a.word}" aria-label="${a.word}"><span class="emoji">${a.emoji}</span><span class="word">${a.word}</span></button>`).join("");
+ document.querySelectorAll(".card").forEach(el=>el.addEventListener("click",()=>choose(el)));
+}
+function choose(el){
+ if(answered)return; answered=true;
+ const ok=el.dataset.word===current.word;
+ if(ok){score++;stars++;el.classList.add("correct");$("feedback").textContent="Correct! เยี่ยมมาก! ⭐";$("feedback").style.color="#21834a";}
+ else{el.classList.add("wrong");$("feedback").textContent=`ลองใหม่นะ! คำตอบคือ ${current.word} ${current.emoji}`;$("feedback").style.color="#bd5555";document.querySelectorAll(".card").forEach(c=>{if(c.dataset.word===current.word)c.classList.add("correct")});}
+ $("score").textContent=score;$("stars").textContent=stars;$("next").hidden=false;order++;
+}
+$("next").onclick=newRound;
+$("restart").onclick=()=>{order=0;score=0;stars=0;newRound()};
+newRound();
+function pointToScreen(lm){
+ const v=$("video"),r=v.getBoundingClientRect();
+ // MediaPipe x is mirrored to match the mirrored preview.
+ return {x:r.left+(1-lm.x)*r.width,y:r.top+lm.y*r.height};
+}
+function onResults(results){
+ if(!results.multiHandLandmarks||!results.multiHandLandmarks.length){$("pointer").style.display="none";hoverCard=null;return}
+ const lm=results.multiHandLandmarks[0][8],p=pointToScreen(lm),ptr=$("pointer");
+ ptr.style.display="block";ptr.style.left=p.x+"px";ptr.style.top=p.y+"px";
+ const el=document.elementFromPoint(p.x,p.y)?.closest(".card");
+ document.querySelectorAll(".card.selected").forEach(x=>x.classList.remove("selected"));
+ if(!el||answered){hoverCard=null;hoverStart=0;return}
+ el.classList.add("selected");
+ if(hoverCard!==el){hoverCard=el;hoverStart=Date.now()}
+ else if(Date.now()-hoverStart>950 && Date.now()-lastSelect>1300){lastSelect=Date.now();choose(el);hoverStart=0}
+}
+async function startCamera(){
+ if(!navigator.mediaDevices?.getUserMedia){$("camStatus").textContent="เบราว์เซอร์นี้ไม่รองรับกล้อง กรุณาใช้ Safari/Chrome ผ่านเว็บไซต์ HTTPS";return}
+ try{
+  stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"user",width:640,height:480},audio:false});
+  $("video").srcObject=stream; await $("video").play();
+  if(typeof Hands==="undefined"||typeof Camera==="undefined"){ $("camStatus").textContent="เปิดกล้องแล้ว แต่โหลดระบบ AI ไม่สำเร็จ กรุณาตรวจอินเทอร์เน็ต หรือเล่นโดยแตะหน้าจอ";return}
+  handModel=new Hands({locateFile:(file)=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+  handModel.setOptions({maxNumHands:1,modelComplexity:1,minDetectionConfidence:.65,minTrackingConfidence:.6});
+  handModel.onResults(onResults);
+  mpCamera=new Camera($("video"),{onFrame:async()=>{if(handModel)await handModel.send({image:$("video")})},width:640,height:480});
+  mpCamera.start();$("camStatus").textContent="กล้องพร้อมแล้ว! ชูมือให้อยู่ในกรอบ แล้วใช้นิ้วชี้เลือกภาพ ✋";
+ }catch(e){$("camStatus").textContent="ไม่สามารถเปิดกล้องได้: โปรดอนุญาต Camera ในการตั้งค่าเว็บไซต์ และเปิดผ่าน HTTPS";}
+}
+function stopCamera(){
+ if(mpCamera){mpCamera.stop();mpCamera=null} if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}
+ handModel=null;$("video").srcObject=null;$("pointer").style.display="none";$("camStatus").textContent="ปิดกล้องแล้ว — แตะรูปเพื่อเล่นได้";
+}
+$("startCam").onclick=startCamera;$("stopCam").onclick=stopCamera;
+window.addEventListener("beforeunload",stopCamera);
+</script>
+</body>
+</html>
